@@ -1,0 +1,85 @@
+version: "3.8"
+services:
+  activemq-artemis:
+    image: vromero/activemq-artemis
+    container_name: activemq-artemis
+    expose:
+      - 8161
+      - 61616
+    ports:
+      - 8161:8161
+      - 61616:61616
+
+  employees-service:
+    image: mmbarek/employees-service
+    container_name: employees-service
+    ports:
+      - 8010:8010
+    environment:
+      - SPRING_PROFILES_ACTIVE=cloud
+      - SPRING_ARTEMIS_HOST=host.docker.internal
+    networks:
+      - app
+
+  projects_postgres:
+    image: postgres
+    container_name: projects_postgres
+    depends_on:
+      - employees-service
+      - activemq-artemis
+    volumes:
+      - postgresqldata:/var/lib/postgresql/data
+    ports:
+      - 5432:5432
+    environment:
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_ENCODING=UTF8
+    networks:
+      - app
+
+  projects-service:
+    image: mmbarek/project-management-service
+    container_name: projects_service
+    depends_on:
+      - projects_postgres
+    ports:
+      - 8020:8020
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://projects_postgres:5432/postgres
+      - SPRING_DATASOURCE_USER=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+    networks:
+      - app
+
+  car-fleet-service:
+    image: mmbarek/car-fleet-service
+    container_name: car-fleet-service
+    depends_on:
+      - eureka-discovery-service
+    ports:
+      - 8030:8030
+    environment:
+      - SPRING_PROFILES_ACTIVE=oauth
+      - KEYCLOAK_HOST=host.docker.internal
+    networks:
+      - app
+
+  employees-webapp:
+    image: mmbarek/employees-webapp
+    container_name: employees-webapp
+    depends_on:
+      - projects-service
+      - employees-service
+      - car-fleet-service
+    ports:
+      - 4200:80
+    networks:
+      - app
+
+networks:
+  app:
+    name: app
+
+volumes:
+  postgresqldata:
+    external: false

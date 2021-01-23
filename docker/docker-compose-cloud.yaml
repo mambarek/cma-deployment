@@ -1,0 +1,116 @@
+version: "3.8"
+services:
+  activemq-artemis:
+    image: vromero/activemq-artemis
+    container_name: activemq-artemis
+    expose:
+      - 8161
+      - 61616
+    ports:
+      - 8161:8161
+      - 61616:61616
+
+  eureka-discovery-service:
+    image: mmbarek/eureka-discovery-service
+    container_name: eureka-discovery-service
+    ports:
+      - 8761:8761
+    networks:
+      - app
+
+  employees-service:
+    image: mmbarek/employees-service
+    container_name: employees-service
+    depends_on:
+      - eureka-discovery-service
+    environment:
+      - SPRING_PROFILES_ACTIVE=cloud
+      - SPRING_ARTEMIS_HOST=host.docker.internal
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-discovery-service:8761/eureka
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+    networks:
+      - app
+
+  projects_postgres:
+    image: postgres
+    container_name: projects_postgres
+    depends_on:
+      - eureka-discovery-service
+      - employees-service
+      - activemq-artemis
+    volumes:
+      - postgresqldata:/var/lib/postgresql/data
+    ports:
+      - 5432:5432
+    environment:
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_ENCODING=UTF8
+    networks:
+      - app
+
+  projects-service:
+    image: mmbarek/project-management-service
+    container_name: projects_service
+    depends_on:
+      - projects_postgres
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://projects_postgres:5432/postgres
+      - SPRING_DATASOURCE_USER=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+      - SPRING_PROFILES_ACTIVE=cloud
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-discovery-service:8761/eureka
+    networks:
+      - app
+
+  car-fleet-service:
+    image: mmbarek/car-fleet-service
+    container_name: car-fleet-service
+    depends_on:
+      - eureka-discovery-service
+    environment:
+      - SPRING_PROFILES_ACTIVE=cloud, oauth
+      - KEYCLOAK_HOST=host.docker.internal
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-discovery-service:8761/eureka
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+    networks:
+      - app
+
+  employees-webapp:
+    image: mmbarek/employees-webapp
+    container_name: employees-webapp
+    depends_on:
+      - projects-service
+      - employees-service
+      - car-fleet-service
+    ports:
+      - 4200:80
+    environment:
+      - PROJECTS_API_URL=http://localhost:8888/pms
+      - EMPLOYEES_API_URL=http://localhost:8888/ems
+      - CAR_FLEET_API_URL=http://localhost:8888/cms
+    networks:
+      - app
+
+  cma-api-gateway:
+    image: mmbarek/cma-api-gateway
+    container_name: cma-api-gateway
+    depends_on:
+      - eureka-discovery-service
+      - employees-service
+      - car-fleet-service
+      - projects-service
+    environment:
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-discovery-service:8761/eureka
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+    ports:
+      - 8888:8888
+    networks:
+      - app
+
+networks:
+  app:
+    name: app
+
+volumes:
+  postgresqldata:
+    external: false
