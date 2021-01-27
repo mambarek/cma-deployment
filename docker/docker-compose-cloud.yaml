@@ -1,14 +1,10 @@
 version: "3.8"
 services:
-  activemq-artemis:
-    image: vromero/activemq-artemis
-    container_name: activemq-artemis
-    expose:
-      - 8161
-      - 61616
+  rabbitmq:
+    image: rabbitmq:management
     ports:
-      - 8161:8161
-      - 61616:61616
+      - "5672:5672"
+      - "15672:15672"
 
   eureka-discovery-service:
     image: mmbarek/eureka-discovery-service

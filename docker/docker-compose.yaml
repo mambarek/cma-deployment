@@ -54,8 +54,6 @@ services:
   car-fleet-service:
     image: mmbarek/car-fleet-service
     container_name: car-fleet-service
-    depends_on:
-      - eureka-discovery-service
     ports:
       - 8030:8030
     environment:
