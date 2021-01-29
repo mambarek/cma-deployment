@@ -33,7 +33,6 @@ services:
     depends_on:
       - eureka-discovery-service
       - employees-service
-      - activemq-artemis
     volumes:
       - postgresqldata:/var/lib/postgresql/data
     ports:
@@ -49,6 +48,7 @@ services:
     container_name: projects_service
     depends_on:
       - projects_postgres
+      - rabbitmq
     environment:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://projects_postgres:5432/postgres
       - SPRING_DATASOURCE_USER=postgres
