@@ -2,6 +2,7 @@ version: "3.8"
 services:
   rabbitmq:
     image: rabbitmq:management
+    container_name: rabbitmq
     ports:
       - "5672:5672"
       - "15672:15672"
@@ -14,14 +15,38 @@ services:
     networks:
       - app
 
+  # attention module name is cma-configserver but image name is cma-config-server
+  cma-config-server:
+    image: mmbarek/cma-configserver
+    container_name: cma-config-server
+    depends_on:
+      - eureka-discovery-service
+    ports:
+      - 8088:8088
+    networks:
+      - app
+
+  cma-api-gateway:
+    image: mmbarek/cma-api-gateway
+    container_name: cma-api-gateway
+    depends_on:
+      - cma-config-server
+    environment:
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-discovery-service:8761/eureka
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+    ports:
+      - 8888:8888
+    networks:
+      - app
+
   employees-service:
     image: mmbarek/employees-service
     container_name: employees-service
     depends_on:
       - eureka-discovery-service
     environment:
-      - SPRING_PROFILES_ACTIVE=cloud
-      - SPRING_ARTEMIS_HOST=host.docker.internal
+      - SPRING_PROFILES_ACTIVE=cloud,rabbit
+      - SPRING_RABBITMQ_HOST=host.docker.internal
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-discovery-service:8761/eureka
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
     networks:
@@ -53,7 +78,8 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://projects_postgres:5432/postgres
       - SPRING_DATASOURCE_USER=postgres
       - SPRING_DATASOURCE_PASSWORD=postgres
-      - SPRING_PROFILES_ACTIVE=cloud
+      - SPRING_PROFILES_ACTIVE=postgres,cloud,rabbit
+      - SPRING_RABBITMQ_HOST=host.docker.internal
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-discovery-service:8761/eureka
     networks:
       - app
@@ -84,22 +110,6 @@ services:
       - PROJECTS_API_URL=http://localhost:8888/pms
       - EMPLOYEES_API_URL=http://localhost:8888/ems
       - CAR_FLEET_API_URL=http://localhost:8888/cms
-    networks:
-      - app
-
-  cma-api-gateway:
-    image: mmbarek/cma-api-gateway
-    container_name: cma-api-gateway
-    depends_on:
-      - eureka-discovery-service
-      - employees-service
-      - car-fleet-service
-      - projects-service
-    environment:
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-discovery-service:8761/eureka
-      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
-    ports:
-      - 8888:8888
     networks:
       - app
 
