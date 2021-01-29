@@ -24,9 +24,7 @@ services:
   projects_postgres:
     image: postgres
     container_name: projects_postgres
-    depends_on:
-      - employees-service
-      - activemq-artemis
+
     volumes:
       - postgresqldata:/var/lib/postgresql/data
     ports:
