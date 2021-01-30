@@ -4,16 +4,15 @@ services:
     image: rabbitmq:management
     container_name: rabbitmq
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - 5672:5672
+      - 15672:15672
 
   eureka-discovery-service:
     image: mmbarek/eureka-discovery-service
     container_name: eureka-discovery-service
     ports:
       - 8761:8761
-    networks:
-      - app
+    restart: on-failure
 
   # attention module name is cma-configserver but image name is cma-config-server
   cma-config-server:
@@ -23,12 +22,12 @@ services:
       - eureka-discovery-service
       - rabbitmq
     environment:
-      - SPRING_RABBITMQ_HOST=host.docker.internal
+      - SPRING_RABBITMQ_HOST=rabbitmq
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-discovery-service:8761/eureka
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
     ports:
       - ${CONFIG_SERVER_PORT}:8088
-    networks:
-      - app
+    restart: on-failure
 
   cma-api-gateway:
     image: mmbarek/cma-api-gateway
@@ -36,13 +35,12 @@ services:
     depends_on:
       - cma-config-server
     environment:
-      - SPRING_RABBITMQ_HOST=host.docker.internal
+      - SPRING_RABBITMQ_HOST=rabbitmq
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-discovery-service:8761/eureka
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
     ports:
       - ${API_GATEWAY_PORT}:8888
-    networks:
-      - app
+    restart: on-failure
 
   employees-service:
     image: mmbarek/employees-service
@@ -54,14 +52,10 @@ services:
       - cma-api-gateway
     environment:
       - SPRING_PROFILES_ACTIVE=cloud,rabbit
-      - SPRING_RABBITMQ_HOST=host.docker.internal
-      #- SPRING_CLOUD_CONFIG_URI=http://host.docker.internal:${CONFIG_SERVER_PORT}
-      #- SPRING_CLOUD_CONFIG_URI=http://cma-config-server:${CONFIG_SERVER_PORT}
+      - SPRING_RABBITMQ_HOST=rabbitmq
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-discovery-service:8761/eureka
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
     restart: on-failure
-    networks:
-      - app
 
   projects_postgres:
     image: postgres
@@ -76,8 +70,6 @@ services:
     environment:
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_ENCODING=UTF8
-    networks:
-      - app
 
   projects-service:
     image: mmbarek/project-management-service
@@ -89,11 +81,10 @@ services:
       - SPRING_DATASOURCE_USER=postgres
       - SPRING_DATASOURCE_PASSWORD=postgres
       - SPRING_PROFILES_ACTIVE=postgres,cloud,rabbit
-      - SPRING_RABBITMQ_HOST=host.docker.internal
+      - SPRING_RABBITMQ_HOST=rabbitmq
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-discovery-service:8761/eureka
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
     restart: on-failure
-    networks:
-      - app
 
   car-fleet-service:
     image: mmbarek/car-fleet-service
@@ -105,8 +96,7 @@ services:
       - KEYCLOAK_HOST=host.docker.internal
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-discovery-service:8761/eureka
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
-    networks:
-      - app
+    restart: on-failure
 
   employees-webapp:
     image: mmbarek/employees-webapp
@@ -121,12 +111,6 @@ services:
       - PROJECTS_API_URL=http://localhost:${API_GATEWAY_PORT}/pms
       - EMPLOYEES_API_URL=http://localhost:${API_GATEWAY_PORT}/ems
       - CAR_FLEET_API_URL=http://localhost:${API_GATEWAY_PORT}/cms
-    networks:
-      - app
-
-networks:
-  app:
-    name: app
 
 volumes:
   postgresqldata:
