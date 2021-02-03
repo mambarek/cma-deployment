@@ -7,6 +7,11 @@ services:
       - 5672:5672
       - 15672:15672
 
+  zipkin:
+    image: openzipkin/zipkin
+    ports:
+      - 9411:9411
+
   eureka-discovery-service:
     image: mmbarek/eureka-discovery-service
     container_name: eureka-discovery-service
