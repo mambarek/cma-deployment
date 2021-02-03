@@ -6,11 +6,15 @@ services:
     ports:
       - 5672:5672
       - 15672:15672
+    networks:
+      - app
 
   zipkin:
     image: openzipkin/zipkin
     ports:
       - 9411:9411
+    networks:
+      - app
 
   eureka-discovery-service:
     image: mmbarek/eureka-discovery-service
@@ -18,6 +22,11 @@ services:
     ports:
       - 8761:8761
     restart: on-failure
+    labels:
+      collect_logs_with_filebeat: "true"
+      decode_log_event_to_json_object: "true"
+    networks:
+      - app
 
   # attention module name is cma-configserver but image name is cma-config-server
   cma-config-server:
@@ -33,6 +42,11 @@ services:
     ports:
       - ${CONFIG_SERVER_PORT}:8088
     restart: on-failure
+    labels:
+      collect_logs_with_filebeat: "true"
+      decode_log_event_to_json_object: "true"
+    networks:
+      - app
 
   cma-api-gateway:
     image: mmbarek/cma-api-gateway
@@ -46,6 +60,11 @@ services:
     ports:
       - ${API_GATEWAY_PORT}:8888
     restart: on-failure
+    labels:
+      collect_logs_with_filebeat: "true"
+      decode_log_event_to_json_object: "true"
+    networks:
+      - app
 
   employees-service:
     image: mmbarek/employees-service
@@ -61,6 +80,11 @@ services:
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-discovery-service:8761/eureka
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
     restart: on-failure
+    labels:
+      collect_logs_with_filebeat: "true"
+      decode_log_event_to_json_object: "true"
+    networks:
+      - app
 
   projects_postgres:
     image: postgres
@@ -75,6 +99,8 @@ services:
     environment:
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_ENCODING=UTF8
+    networks:
+      - app
 
   projects-service:
     image: mmbarek/project-management-service
@@ -90,6 +116,11 @@ services:
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-discovery-service:8761/eureka
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
     restart: on-failure
+    labels:
+      collect_logs_with_filebeat: "true"
+      decode_log_event_to_json_object: "true"
+    networks:
+      - app
 
   car-fleet-service:
     image: mmbarek/car-fleet-service
@@ -102,6 +133,11 @@ services:
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-discovery-service:8761/eureka
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
     restart: on-failure
+    labels:
+      collect_logs_with_filebeat: "true"
+      decode_log_event_to_json_object: "true"
+    networks:
+      - app
 
   employees-webapp:
     image: mmbarek/employees-webapp
@@ -116,6 +152,48 @@ services:
       - PROJECTS_API_URL=http://localhost:${API_GATEWAY_PORT}/pms
       - EMPLOYEES_API_URL=http://localhost:${API_GATEWAY_PORT}/ems
       - CAR_FLEET_API_URL=http://localhost:${API_GATEWAY_PORT}/cms
+    networks:
+      - app
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch-oss:7.7.1
+    container_name: elasticsearch-7.7.1
+    environment:
+      discovery.type: single-node
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    networks:
+      - elk
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana-oss:7.7.1
+    container_name: kibana-7.7.1
+    depends_on:
+      - elasticsearch
+    ports:
+      - "5601:5601"
+    networks:
+      - elk
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:7.7.1
+    container_name: filebeat-7.7.1
+    volumes:
+      - ./filebeat/filebeat.docker.yml:/usr/share/filebeat/filebeat.yml:ro # Configuration file
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro           # Docker logs
+      - /var/run/docker.sock:/var/run/docker.sock:ro                       # Additional information about containers
+    user: root                                                             # Allow access to log files and docker.sock
+    restart: on-failure
+    networks:
+      - app
+      - elk
+
+networks:
+  elk:
+    name: elk
+  app:
+    name: app
 
 volumes:
   postgresqldata:
