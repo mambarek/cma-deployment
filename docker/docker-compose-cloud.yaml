@@ -1,20 +1,19 @@
 version: "3.8"
 services:
   rabbitmq:
-    image: rabbitmq:management
+    image: rabbitmq:3.8.12-rc.1-management
     container_name: rabbitmq
+    hostname: rabbitmq
     ports:
       - 5672:5672
       - 15672:15672
-    networks:
-      - app
 
   zipkin:
     image: openzipkin/zipkin
+    container_name: zipkin
+    hostname: zipkin
     ports:
       - 9411:9411
-    networks:
-      - app
 
   eureka-discovery-service:
     image: mmbarek/eureka-discovery-service
@@ -25,8 +24,6 @@ services:
     labels:
       collect_logs_with_filebeat: "true"
       decode_log_event_to_json_object: "true"
-    networks:
-      - app
 
   # attention module name is cma-configserver but image name is cma-config-server
   cma-config-server:
@@ -45,8 +42,6 @@ services:
     labels:
       collect_logs_with_filebeat: "true"
       decode_log_event_to_json_object: "true"
-    networks:
-      - app
 
   cma-api-gateway:
     image: mmbarek/cma-api-gateway
@@ -63,8 +58,6 @@ services:
     labels:
       collect_logs_with_filebeat: "true"
       decode_log_event_to_json_object: "true"
-    networks:
-      - app
 
   employees-service:
     image: mmbarek/employees-service
@@ -83,11 +76,9 @@ services:
     labels:
       collect_logs_with_filebeat: "true"
       decode_log_event_to_json_object: "true"
-    networks:
-      - app
 
   projects_postgres:
-    image: postgres
+    image: postgres:13.1-alpine
     container_name: projects_postgres
     depends_on:
       - cma-api-gateway
@@ -99,8 +90,6 @@ services:
     environment:
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_ENCODING=UTF8
-    networks:
-      - app
 
   projects-service:
     image: mmbarek/project-management-service
@@ -119,16 +108,18 @@ services:
     labels:
       collect_logs_with_filebeat: "true"
       decode_log_event_to_json_object: "true"
-    networks:
-      - app
 
   car-fleet-service:
     image: mmbarek/car-fleet-service
     container_name: car-fleet-service
     depends_on:
+      - rabbitmq
+      - cma-config-server
+      - eureka-discovery-service
       - cma-api-gateway
     environment:
-      - SPRING_PROFILES_ACTIVE=cloud, oauth
+      - SPRING_PROFILES_ACTIVE=cloud, rabbit, tracing
+      - SPRING_RABBITMQ_HOST=rabbitmq
       - KEYCLOAK_HOST=host.docker.internal
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-discovery-service:8761/eureka
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
@@ -136,8 +127,6 @@ services:
     labels:
       collect_logs_with_filebeat: "true"
       decode_log_event_to_json_object: "true"
-    networks:
-      - app
 
   employees-webapp:
     image: mmbarek/employees-webapp
@@ -152,48 +141,38 @@ services:
       - PROJECTS_API_URL=http://localhost:${API_GATEWAY_PORT}/pms
       - EMPLOYEES_API_URL=http://localhost:${API_GATEWAY_PORT}/ems
       - CAR_FLEET_API_URL=http://localhost:${API_GATEWAY_PORT}/cms
-    networks:
-      - app
 
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch-oss:7.7.1
-    container_name: elasticsearch-7.7.1
+    image: docker.elastic.co/elasticsearch/elasticsearch-oss:${ELASTIC_VERSION}
+    container_name: elasticsearch
+    hostname: elasticsearch
     environment:
-      discovery.type: single-node
+      - discovery.type=single-node
+      - http.host=0.0.0.0
+      - transport.host=127.0.0.1
     ports:
-      - "9200:9200"
-      - "9300:9300"
-    networks:
-      - elk
+      - 9200:9200
 
   kibana:
-    image: docker.elastic.co/kibana/kibana-oss:7.7.1
-    container_name: kibana-7.7.1
+    image: docker.elastic.co/kibana/kibana-oss:${ELASTIC_VERSION}
+    container_name: kibana
+    hostname: kibana
     depends_on:
       - elasticsearch
     ports:
-      - "5601:5601"
-    networks:
-      - elk
+      - 5601:5601
 
   filebeat:
-    image: docker.elastic.co/beats/filebeat:7.7.1
-    container_name: filebeat-7.7.1
+    image: docker.elastic.co/beats/filebeat-oss:${ELASTIC_VERSION}
+    container_name: filebeat
+    hostname: filebeat
     volumes:
       - ./filebeat/filebeat.docker.yml:/usr/share/filebeat/filebeat.yml:ro # Configuration file
       - /var/lib/docker/containers:/var/lib/docker/containers:ro           # Docker logs
       - /var/run/docker.sock:/var/run/docker.sock:ro                       # Additional information about containers
     user: root                                                             # Allow access to log files and docker.sock
+    #command: filebeat -e -E output.elasticsearch.username=elastic -E output.elasticsearch.password=${ES_PASSWORD} -strict.perms=false
     restart: on-failure
-    networks:
-      - app
-      - elk
-
-networks:
-  elk:
-    name: elk
-  app:
-    name: app
 
 volumes:
   postgresqldata:
