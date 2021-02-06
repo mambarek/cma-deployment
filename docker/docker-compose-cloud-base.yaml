@@ -1,0 +1,72 @@
+version: "3.8"
+services:
+  rabbitmq:
+    image: rabbitmq:3.8.12-rc.1-management
+    container_name: rabbitmq
+    hostname: rabbitmq
+    ports:
+      - 5672:5672
+      - 15672:15672
+
+  zipkin:
+    image: openzipkin/zipkin
+    container_name: zipkin
+    hostname: zipkin
+    ports:
+      - 9411:9411
+
+  eureka-discovery-service:
+    image: mmbarek/eureka-discovery-service
+    container_name: eureka-discovery-service
+    ports:
+      - 8761:8761
+    restart: on-failure
+    healthcheck:
+      test: [ "CMD", "curl", "-s", "-f", "http://localhost:8761" ]
+      retries: 6
+    labels:
+      collect_logs_with_filebeat: "true"
+      decode_log_event_to_json_object: "true"
+
+  # attention module name is cma-configserver but image name is cma-config-server
+  cma-config-server:
+    image: mmbarek/cma-configserver
+    container_name: cma-config-server
+    depends_on:
+      - eureka-discovery-service
+      - rabbitmq
+    environment:
+      - SPRING_CLOUD_CONFIG_SERVER_GIT_URI=https://github.com/mambarek/cma-config-repo
+      - SPRING_RABBITMQ_HOST=rabbitmq
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-discovery-service:8761/eureka/
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+    ports:
+      - ${CONFIG_SERVER_PORT}:8088
+    restart: on-failure
+    healthcheck:
+      test: [ "CMD", "curl", "-s", "-f", "http://localhost:8088" ]
+      retries: 6
+    labels:
+      collect_logs_with_filebeat: "true"
+      decode_log_event_to_json_object: "true"
+
+  cma-api-gateway:
+    image: mmbarek/cma-api-gateway
+    container_name: cma-api-gateway
+    depends_on:
+      - cma-config-server
+    environment:
+      - SPRING_RABBITMQ_HOST=rabbitmq
+      - SPRING_ZIPKIN_BASEURL=http://zipkin:9411
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-discovery-service:8761/eureka/
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+    ports:
+      - ${API_GATEWAY_PORT}:8888
+    restart: on-failure
+    healthcheck:
+      test: [ "CMD", "curl", "-s", "-f", "http://localhost:8888" ]
+      retries: 6
+    labels:
+      collect_logs_with_filebeat: "true"
+      decode_log_event_to_json_object: "true"
+
