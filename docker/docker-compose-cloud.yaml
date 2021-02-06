@@ -1,5 +1,37 @@
 version: "3.8"
 services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch-oss:${ELASTIC_VERSION}
+    container_name: elasticsearch
+    hostname: elasticsearch
+    environment:
+      - discovery.type=single-node
+    ports:
+      - 9200:9200
+      - 9300:9300
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana-oss:${ELASTIC_VERSION}
+    container_name: kibana
+    hostname: kibana
+    depends_on:
+      - elasticsearch
+    ports:
+      - 5601:5601
+    restart: on-failure
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat-oss:${ELASTIC_VERSION}
+    container_name: filebeat
+    hostname: filebeat
+    volumes:
+      - ./filebeat/filebeat.docker.yml:/usr/share/filebeat/filebeat.yml:ro # Configuration file
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro           # Docker logs
+      - /var/run/docker.sock:/var/run/docker.sock:ro                       # Additional information about containers
+    user: root                                                             # Allow access to log files and docker.sock
+    #command: filebeat -e -E output.elasticsearch.username=elastic -E output.elasticsearch.password=${ES_PASSWORD} -strict.perms=false
+    restart: on-failure
+
   rabbitmq:
     image: rabbitmq:3.8.12-rc.1-management
     container_name: rabbitmq
@@ -33,8 +65,9 @@ services:
       - eureka-discovery-service
       - rabbitmq
     environment:
+      - SPRING_CLOUD_CONFIG_SERVER_GIT_URI=https://github.com/mambarek/cma-config-repo
       - SPRING_RABBITMQ_HOST=rabbitmq
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-discovery-service:8761/eureka
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-discovery-service:8761/eureka/
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
     ports:
       - ${CONFIG_SERVER_PORT}:8088
@@ -50,7 +83,8 @@ services:
       - cma-config-server
     environment:
       - SPRING_RABBITMQ_HOST=rabbitmq
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-discovery-service:8761/eureka
+      - SPRING_ZIPKIN_BASEURL=http://zipkin:9411
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-discovery-service:8761/eureka/
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
     ports:
       - ${API_GATEWAY_PORT}:8888
@@ -68,9 +102,11 @@ services:
       - eureka-discovery-service
       - cma-api-gateway
     environment:
-      - SPRING_PROFILES_ACTIVE=cloud,rabbit
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://cma-config-server:8088/
+      - SPRING_PROFILES_ACTIVE=cloud,rabbit,tracing
       - SPRING_RABBITMQ_HOST=rabbitmq
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-discovery-service:8761/eureka
+      - SPRING_ZIPKIN_BASEURL=http://zipkin:9411
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-discovery-service:8761/eureka/
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
     restart: on-failure
     labels:
@@ -97,12 +133,14 @@ services:
     depends_on:
       - projects_postgres
     environment:
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://cma-config-server:8088/
       - SPRING_DATASOURCE_URL=jdbc:postgresql://projects_postgres:5432/postgres
       - SPRING_DATASOURCE_USER=postgres
       - SPRING_DATASOURCE_PASSWORD=postgres
-      - SPRING_PROFILES_ACTIVE=postgres,cloud,rabbit
+      - SPRING_PROFILES_ACTIVE=postgres,cloud,rabbit,tracing
       - SPRING_RABBITMQ_HOST=rabbitmq
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-discovery-service:8761/eureka
+      - SPRING_ZIPKIN_BASEURL=http://zipkin:9411
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-discovery-service:8761/eureka/
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
     restart: on-failure
     labels:
@@ -118,11 +156,13 @@ services:
       - eureka-discovery-service
       - cma-api-gateway
     environment:
-      - SPRING_PROFILES_ACTIVE=cloud, rabbit, tracing
+      - SPRING_PROFILES_ACTIVE=cloud,rabbit,tracing
       - SPRING_RABBITMQ_HOST=rabbitmq
+      - SPRING_ZIPKIN_BASEURL=http://zipkin:9411
       - KEYCLOAK_HOST=host.docker.internal
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-discovery-service:8761/eureka
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://cma-config-server:8088/
     restart: on-failure
     labels:
       collect_logs_with_filebeat: "true"
@@ -141,38 +181,6 @@ services:
       - PROJECTS_API_URL=http://localhost:${API_GATEWAY_PORT}/pms
       - EMPLOYEES_API_URL=http://localhost:${API_GATEWAY_PORT}/ems
       - CAR_FLEET_API_URL=http://localhost:${API_GATEWAY_PORT}/cms
-
-  elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch-oss:${ELASTIC_VERSION}
-    container_name: elasticsearch
-    hostname: elasticsearch
-    environment:
-      - discovery.type=single-node
-      - http.host=0.0.0.0
-      - transport.host=127.0.0.1
-    ports:
-      - 9200:9200
-
-  kibana:
-    image: docker.elastic.co/kibana/kibana-oss:${ELASTIC_VERSION}
-    container_name: kibana
-    hostname: kibana
-    depends_on:
-      - elasticsearch
-    ports:
-      - 5601:5601
-
-  filebeat:
-    image: docker.elastic.co/beats/filebeat-oss:${ELASTIC_VERSION}
-    container_name: filebeat
-    hostname: filebeat
-    volumes:
-      - ./filebeat/filebeat.docker.yml:/usr/share/filebeat/filebeat.yml:ro # Configuration file
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro           # Docker logs
-      - /var/run/docker.sock:/var/run/docker.sock:ro                       # Additional information about containers
-    user: root                                                             # Allow access to log files and docker.sock
-    #command: filebeat -e -E output.elasticsearch.username=elastic -E output.elasticsearch.password=${ES_PASSWORD} -strict.perms=false
-    restart: on-failure
 
 volumes:
   postgresqldata:
