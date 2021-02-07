@@ -58,9 +58,9 @@ services:
       interval: 30s
       timeout: 1s
       retries: 5
-    labels:
-      collect_logs_with_filebeat: "true"
-      decode_log_event_to_json_object: "true"
+    #labels:
+    #  collect_logs_with_filebeat: "true"
+    #  decode_log_event_to_json_object: "true"
 
   # attention module name is cma-configserver but image name is cma-config-server
   cma-config-server:
@@ -82,9 +82,9 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-    labels:
-      collect_logs_with_filebeat: "true"
-      decode_log_event_to_json_object: "true"
+    #labels:
+    #  collect_logs_with_filebeat: "true"
+    #  decode_log_event_to_json_object: "true"
 
   cma-api-gateway:
     image: mmbarek/cma-api-gateway
