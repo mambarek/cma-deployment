@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: projects-service
+spec:
+  #type: ClusterIP
+  type: NodePort
+  selector:
+    component: projects-server
+  ports:
+    - port: 8020
+      targetPort: 8020
+      nodePort: 32020
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: projects-server
+spec:
+  replicas: 1
+  selector:
+      matchLabels:
+          component: projects-server
+  template:
+      metadata:
+          labels:
+            component: projects-server
+      spec:
+          containers:
+              - name: projects-server
+                image: mmbarek/project-management-service
+                ports:
+                  - containerPort: 8020
+                env:
+                  - name: SPRING_PROFILES_ACTIVE
+                    value: "rabbit,k8s,cloud"
+                  - name: SPRING_CLOUD_CONFIG_URI
+                    value: "http://config-service:8088"
+                  - name: SPRING_CLOUD_BOOTSTRAP_ENABLED
+                    value: "true"  
+  

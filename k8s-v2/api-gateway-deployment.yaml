@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway-service
+spec:
+  #type: ClusterIP
+  type: NodePort
+  selector:
+    component: api-gateway-server
+  ports:
+    - port: 8888
+      targetPort: 8888
+      nodePort: 32288
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway-server
+spec:
+  replicas: 1
+  selector:
+      matchLabels:
+          component: api-gateway-server
+  template:
+      metadata:
+          labels:
+            component: api-gateway-server
+      spec:
+          containers:
+              - name: api-gateway-server
+                image: mmbarek/cma-api-gateway
+                ports:
+                  - containerPort: 8888
+                env:
+                  - name: SPRING_PROFILES_ACTIVE
+                    value: "rabbit,k8s"
+                  - name: SPRING_CLOUD_CONFIG_URI
+                    value: "http://config-service:8088"
+                  - name: SPRING_CLOUD_BOOTSTRAP_ENABLED
+                    value: "true"   

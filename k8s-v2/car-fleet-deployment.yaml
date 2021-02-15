@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: car-fleet-service
+spec:
+  #type: ClusterIP
+  type: NodePort
+  selector:
+    component: car-fleet-server
+  ports:
+    - port: 8030
+      targetPort: 8030
+      nodePort: 32030
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: car-fleet-server
+spec:
+  replicas: 1
+  selector:
+      matchLabels:
+          component: car-fleet-server
+  template:
+      metadata:
+          labels:
+            component: car-fleet-server
+      spec:
+          containers:
+              - name: car-fleet-server
+                image: mmbarek/car-fleet-service
+                ports:
+                  - containerPort: 8030
+                env:
+                  - name: SPRING_PROFILES_ACTIVE
+                    value: "rabbit,k8s,cloud"
+                  - name: SPRING_CLOUD_CONFIG_URI
+                    value: "http://config-service:8088"
+                  - name: SPRING_CLOUD_BOOTSTRAP_ENABLED
+                    value: "true"  
+  

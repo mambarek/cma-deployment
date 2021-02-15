@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: employees-service
+spec:
+  #type: ClusterIP
+  type: NodePort
+  selector:
+    component: employees-server
+  ports:
+    - port: 8010
+      targetPort: 8010
+      nodePort: 32010
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: employees-server
+spec:
+  replicas: 1
+  selector:
+      matchLabels:
+          component: employees-server
+  template:
+      metadata:
+          labels:
+            component: employees-server
+      spec:
+          containers:
+              - name: employees-server
+                image: mmbarek/employees-service
+                ports:
+                  - containerPort: 8010
+                env:
+                  - name: SPRING_PROFILES_ACTIVE
+                    value: "rabbit,k8s,cloud"
+                  - name: SPRING_CLOUD_CONFIG_URI
+                    value: "http://config-service:8088"
+                  - name: SPRING_CLOUD_BOOTSTRAP_ENABLED
+                    value: "true"  
+  
